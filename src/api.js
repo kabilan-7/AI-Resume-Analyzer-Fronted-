@@ -2,58 +2,82 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: 'http://localhost:8080',
-  timeout: 60000,
+  timeout: 120000,
 });
 
-// Attach the JWT token to every outgoing request automatically
 API.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('rs_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// If the token is invalid/expired, the backend returns 401 — log the user out
 API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  (res) => res,
+  (err) => {
+    const isLoginRequest =
+      err.config?.url === "/api/auth/login";
+
+    if (err.response?.status === 401 && !isLoginRequest) {
       sessionStorage.removeItem('rs_token');
       sessionStorage.removeItem('rs_user');
       window.location.reload();
     }
-    return Promise.reject(error);
+
+    return Promise.reject(err);
   }
 );
 
 // ── Auth ─────────────────────────────────────────────────────
-export const registerUser = async (fullName, email, password) => {
-  const response = await API.post('/api/auth/register', { fullName, email, password });
-  return response.data;
-};
+export const registerUser = async (fullName, email, password) =>
+  (await API.post('/api/auth/register', { fullName, email, password })).data;
 
-export const loginUser = async (email, password) => {
-  const response = await API.post('/api/auth/login', { email, password });
-  return response.data;
-};
+export const loginUser = async (email, password) =>
+  (await API.post('/api/auth/login', { email, password })).data;
 
-// ── Screening ────────────────────────────────────────────────
+// ── Single screening ─────────────────────────────────────────
 export const screenResume = async (file, jobTitle, requiredSkills, minYearsExperience) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('jobTitle', jobTitle);
-  requiredSkills.forEach(skill => formData.append('requiredSkills', skill));
-  formData.append('minYearsExperience', String(minYearsExperience));
-
-  const response = await API.post('/api/screen', formData, {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('jobTitle', jobTitle);
+  requiredSkills.forEach(s => fd.append('requiredSkills', s));
+  fd.append('minYearsExperience', String(minYearsExperience));
+  return (await API.post('/api/screen', fd, {
     headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
+  })).data;
 };
 
 export const getResults = async (classification = null) => {
   const params = classification ? { classification } : {};
-  const response = await API.get('/api/screen/results', { params });
-  return response.data;
+  return (await API.get('/api/screen/results', { params })).data;
 };
+
+// ── Job openings ─────────────────────────────────────────────
+export const getJobs = async () =>
+  (await API.get('/api/jobs')).data;
+
+export const createJob = async (payload) =>
+  (await API.post('/api/jobs', payload)).data;
+
+export const deleteJob = async (id) =>
+  API.delete(`/api/jobs/${id}`);
+
+// ── Candidates ───────────────────────────────────────────────
+export const getCandidates = async (jobId) =>
+  (await API.get(`/api/jobs/${jobId}/candidates`)).data;
+
+// ── Bulk screening ───────────────────────────────────────────
+export const bulkScreen = async (jobId, files, onProgress) => {
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+  return (await API.post(`/api/jobs/${jobId}/bulk-screen`, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: onProgress,
+  })).data;
+};
+
+// ── Export ───────────────────────────────────────────────────
+export const exportCsv = (jobId) =>
+  API.get(`/api/jobs/${jobId}/export/csv`, { responseType: 'blob' });
+
+export const exportPdf = (jobId) =>
+  API.get(`/api/jobs/${jobId}/export/pdf`, { responseType: 'blob' });

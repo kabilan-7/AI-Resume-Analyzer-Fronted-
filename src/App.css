@@ -285,3 +285,30 @@
   .user-info { display: none; }
   .header-inner { gap: .75rem; }
 }
+
+.jobs-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+ 
+.jobs-sidebar {
+  display: flex;
+  flex-direction: column;
+}
+ 
+.jobs-sidebar .panel {
+  animation: fadeUp .35s ease both;
+}
+ 
+.jobs-main {
+  animation: fadeUp .4s ease both;
+  min-height: 400px;
+}
+ 
+@media (max-width: 900px) {
+  .jobs-layout {
+    grid-template-columns: 1fr;
+  }
+}
